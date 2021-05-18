@@ -1,8 +1,8 @@
 #include <pthread.h>
-#include <iostream>
+#include <unistd.h>
 #include <list>
-#include <iterator>
 #include <malloc.h>
+#include <semaphore.h>
 #include "minhaBiblioteca.h"
 
 using namespace std;
@@ -32,7 +32,7 @@ Trabalho *pegaTrabalho()
 
     sem_wait(&pocupada);
     pthread_mutex_lock(&m_Trabalhos);
-    trab = listaTrabalhos.front();
+    trab = &listaTrabalhos.front();
     listaTrabalhos.pop_front();
     pthread_mutex_unlock(&m_Trabalhos);
     sem_post(&plivre);
@@ -40,12 +40,12 @@ Trabalho *pegaTrabalho()
     return trab;
 }
 
-void guardaResultado(Trabalho *trab, void *res)
+void guardaResultado(Trabalho* trab, void *res)
 {
     sem_wait(&plivre);
     pthread_mutex_lock(&m_Resultados);
     trab->res = res;
-    listaResultados.push_back(trab);
+    listaResultados.push_back(*trab);
     pthread_mutex_unlock(&m_Resultados);
     sem_post(&pocupada);
     sleep(1);
@@ -69,7 +69,8 @@ void *criaPv(void *dta)
 int start(int m)
 {
     int retorno = 0;
-    pthread_mutex_init(&m, NULL);
+    pthread_mutex_init(&m_Trabalhos, NULL);
+    pthread_mutex_init(&m_Resultados, NULL);
     sem_init(&plivre, 0, m);
     sem_init(&pocupada, 0, 0);
     fim = 0;
@@ -89,6 +90,7 @@ void finish()
     for (int i = 0; i < nPvs; i++)
         pthread_join(pvs[i], NULL);
 }
+
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
 {
     Trabalho *trab;
@@ -104,23 +106,75 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
     trab->tId = ids;
     trab->func = t;
     trab->dta = dta;
-    listaTrabalhos.push_back(trab);
+    listaTrabalhos.push_back(*trab);
     pthread_mutex_unlock(&m_Trabalhos);
     sem_post(&pocupada);
     sleep(1);
     return ids;
 }
+
 int sync(int tId, void **res)
 {
-    
+
+    int flag = 0;
 
     sem_wait(&pocupada);
     pthread_mutex_lock(&m_Resultados);
-     list <Trabalho> :: iterator it;
-    for(it = listaTrabalhos.begin(); it != listaTrabalhos.end(); ++it){
-        
+
+    list <Trabalho> :: iterator it;
+    // Caso 1
+    /*
+     * a tarefa está na lista de tarefas prontas. Neste caso, a execução da primitiva
+     * sync deve retirar a tarefa da lista de tarefas prontas e executá-la,
+     * retornando diretamente o resultado, sem a necessidade de incluir a tarefa concluída na lista de tarefas finalizada.
+     */
+    for(it = listaTrabalhos.begin(); it != listaTrabalhos.end(); ++it) {
+        if (it->tId == tId) {
+            res = (void **)(it->func(it->dta));
+            listaTrabalhos.erase(it);
+            flag = 1;
+            break;
+        }
+    }
+
+    // Caso 2
+    /*
+     * a tarefa está na lista de tarefas terminadas. Neste caso,
+     * basta retirar a tarefa da lista de tarefas terminadas e recuperar o dado de retorno.
+     */
+    for(it = listaResultados.begin(); it != listaResultados.end(); ++it) {
+        if (it->tId == tId) {
+            res = (void **)(it->res);
+            listaResultados.erase(it);
+            flag = 1;
+            break;
+        }
+    }
+
+    // Caso 3
+    /*
+     * a tarefa está em execução (não está em nenhuma das listas). Neste caso, a tarefa está sendo executada por um outro pv
+     * e a implementação deve solucionar o problema. Possíveis soluções: o pv entra em estado de sleep durante um período de
+     * tempo e volta a procurar a tarefa na lista de tarefas finalizadas, apostando que o tempo de espera é curto; o pv retira
+     * uma nova tarefa da lista de prontos e inicia sua execução, na expectativa de que quando esta nova tarefa terminar,
+     * a tarefa a ser sincronizada terá terminado.
+     */
+    if (!flag) {
+        for(int i = 0; i < 10; i++) {
+            sleep(1);
+            for (it = listaResultados.begin(); it != listaResultados.end(); ++it) {
+                if (it->tId == tId) {
+                    res = (void **) (it->res);
+                    listaResultados.erase(it);
+                    flag = 1;
+                    break;
+                }
+            }
+        }
     }
     pthread_mutex_unlock(&m_Resultados);
     sem_post(&plivre);
     sleep(1);
+
+    return flag;
 }

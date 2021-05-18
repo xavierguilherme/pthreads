@@ -19,8 +19,8 @@ void *fibo(void* dta){
         *n2 = *n - 2;
         a2.p = 0; a1.c = *n2;
         t2 = spawn(&a2, fibo, (void*) n2);
-        sync(t1, (void*) &r1);
-        sync(t2, (void*) &r2);
+        sync(t1, (void**) &r1);
+        sync(t2, (void**) &r2);
         *r = *r1 + *r2;
         free(r1); free(r2);
         free(n1); free(n2);
