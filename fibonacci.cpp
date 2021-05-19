@@ -8,7 +8,7 @@ void *fibo(void* dta){
     int *n1, *n2, *r = (int *) malloc(sizeof(int)),
             *r1, *r2, t1, t2;
     struct Atrib a1, a2;
-
+    
     if (*n <= 2) *r = 1;
     else{
         n1 = (int *) malloc(sizeof(int));

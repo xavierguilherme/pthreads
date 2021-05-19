@@ -4,6 +4,7 @@
 #include <malloc.h>
 #include <semaphore.h>
 #include "minhaBiblioteca.h"
+#include <stdio.h>
 
 using namespace std;
 
@@ -27,21 +28,24 @@ Trabalho *pegaTrabalho()
 {
     Trabalho *trab;
 
-    // if (listaTrabalhos.empty())
-    // return NULL;
+     //if (listaTrabalhos.empty())
+     //return NULL;
 
     sem_wait(&pocupada);
     pthread_mutex_lock(&m_Trabalhos);
     trab = &listaTrabalhos.front();
-    listaTrabalhos.pop_front();
+    printf("%d ", *(int*)trab->dta);
+    //listaTrabalhos.pop_front();
     pthread_mutex_unlock(&m_Trabalhos);
     sem_post(&plivre);
-    sleep(1);
+    //sleep(1);
+    
     return trab;
 }
 
 void guardaResultado(Trabalho* trab, void *res)
 {
+
     sem_wait(&plivre);
     pthread_mutex_lock(&m_Resultados);
     trab->res = res;
@@ -55,14 +59,14 @@ void *criaPv(void *dta)
 {
     void *res;
     Trabalho *trab;
-
-    while (!listaTrabalhos.empty())
+    while(!fim){
+    if (!listaTrabalhos.empty())
     {
         trab = pegaTrabalho();
-        res = trab->func(trab->dta);
+        res = trab->func(trab->dta); 
         guardaResultado(trab, res);
     }
-
+        }
     return NULL;
 }
 
@@ -86,7 +90,7 @@ int start(int m)
 void finish()
 {
     fim = 1;
-
+    
     for (int i = 0; i < nPvs; i++)
         pthread_join(pvs[i], NULL);
 }
@@ -94,7 +98,6 @@ void finish()
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
 {
     Trabalho *trab;
-
     trab = (Trabalho *)malloc(sizeof(Trabalho));
     if (trab == NULL)
     {
@@ -109,7 +112,7 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
     listaTrabalhos.push_back(*trab);
     pthread_mutex_unlock(&m_Trabalhos);
     sem_post(&pocupada);
-    sleep(1);
+    
     return ids;
 }
 
@@ -120,7 +123,6 @@ int sync(int tId, void **res)
 
     sem_wait(&pocupada);
     pthread_mutex_lock(&m_Resultados);
-
     list <Trabalho> :: iterator it;
     // Caso 1
     /*
