@@ -146,22 +146,29 @@ int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
 
 Trabalho* pegaTrabalhoPorId(int tId, list<Trabalho*> lista) {
     list <Trabalho*> :: iterator it;
-
+    int i = 0;
     printf("TAMANHO DA LISTA = %d\n", lista.size());
-
+    printf("PROCURANDO POR %d\n", tId);
     Trabalho* trab;
-
+    
     for(it = lista.begin(); it != lista.end(); it++) {
         printf("ID -> %d    TRABALHO -> %d\n", (*it)->tId, *(int*)((*it)->dta));
         if ((*it)->tId == tId) {
+            printf("Achou o id");
+            i = 1;
             trab = *it;
             lista.erase(it);
             break;
         }
     }
-
+    printf("Saiu do for");
+    if(i != 0 ){
     return trab;
+    }else{
+        return NULL;
+    }
 }
+
 
 int sync(int tId, void **res)
 {
