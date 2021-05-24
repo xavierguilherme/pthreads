@@ -18,74 +18,66 @@ typedef struct Trabalho
 
 list<Trabalho*> listaTrabalhos, listaResultados;
 
-//sem_t plivre, pocupada, rlivre, rocupada;
-// pthread_mutex_t m_Trabalhos, m_Resultados;
+sem_t tlivre, tocupada, rlivre, rocupada;
 
 pthread_mutex_t m_trab = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t m_res = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_cond_t var_trab = PTHREAD_COND_INITIALIZER;
-pthread_cond_t var_res = PTHREAD_COND_INITIALIZER;
-
 static pthread_t *pvs; // Processadores virtuais
-static int fim = 0;    //Variavel para indicar o fim do programa
+static bool fim = false;    //Variavel para indicar o fim do programa
 static int nPvs;       //Variavel que vai conter o numero m de processadores virtuais, para conseguir dar join neles na função finish
 static int ids = 0;    //Variavel para controlar os IDs dos trabalhos
 
-Trabalho *pegaTrabalho()
-{
-    printf("-> PEGA TRABALHO    THREAD: %d\n", (int *)pthread_self());
-    Trabalho *trab;
-
-    pthread_mutex_lock(&m_trab);
-
-    while (listaTrabalhos.empty()) pthread_cond_wait(&var_trab, &m_trab);
-
-    printf("-- DENTRO DE PEGA TRABALHO    THREAD: %d\n", (int *)pthread_self());
-    trab = listaTrabalhos.front();
-    listaTrabalhos.pop_front();
-    //printf("        ID = %d       DTA = %d      RES = %d    LIST = %d\n", trab->tId, *(int*)trab->res, *(int*)trab->dta, trab_size);
-    printf("        ID = %d       DTA = %d      LIST = %d\n", trab->tId, *(int*)trab->dta, listaTrabalhos.size());
-    pthread_mutex_unlock(&m_trab);
-
-    return trab;
-}
-
-void guardaResultado(Trabalho* trab, void *res)
-{
-    printf("-> GUARDA RESULTADO   ID: %d    R = %d    THREAD: %d\n", trab->tId, *(int*)res, (int *)pthread_self());
-    pthread_mutex_lock(&m_res);
-
-    printf("-- DENTRO DE GUARDA RESULTADO    THREAD: %d\n", (int *)pthread_self());
-    trab->res = res;
-    listaResultados.push_back(trab);
-
-    printf("        ID = %d       DTA = %d      RES = %d    LIST = %d\n", trab->tId, *(int*)trab->res, *(int*)trab->dta, listaResultados.size());
-
-    if (!listaResultados.empty()) pthread_cond_signal(&var_res);
-    //if (listaResultados.size() > 0) pthread_cond_broadcast(&var_res);
-    pthread_mutex_unlock(&m_res);
-
-}
-
 void *criaPv(void *dta)
 {
-    printf("-> CRIA PV    THREAD: %d\n", (int *)pthread_self());
+    printf("(%d)(CRIA PV)\n", pthread_self());
     void *res;
     Trabalho *trab;
 
     sleep(1);
 
     while(!fim){
-        /* if (trab_size > 0)
-        { */
-        trab = pegaTrabalho();
 
-        printf("-> FIBO THREAD: %d    ", (int *)pthread_self());
+        Trabalho *trab;
+
+        // PEGA O TRABALHO
+        printf("(%d)(PEGA)\n", pthread_self());
+
+        sem_wait(&tocupada);
+        printf("(%d)(DENTRO PEGA)\n", pthread_self());
+        pthread_mutex_lock(&m_trab);
+
+        trab = listaTrabalhos.front();
+        listaTrabalhos.pop_front();
+
+        printf("(%d)(DEPOIS PEGA) ID = %d DTA = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, listaTrabalhos.size());
+        
+        pthread_mutex_unlock(&m_trab);
+        sem_post(&tlivre);
+
+        sleep(1);
+
+        // CHAMA A FUNÇÃO
+        printf("(%d)(FIBO) ", pthread_self());
         res = trab->func(trab->dta);
 
-        guardaResultado(trab, res);
-        /* } */
+        // GUARDA O RESULTADO
+
+        printf("(%d)(GUARDA) ID: %d RES = %d\n", pthread_self(), trab->tId, *(int*)res);
+        sem_wait(&rlivre);
+        printf("(%d)(DENTRO GUARDA)\n", pthread_self());
+        pthread_mutex_lock(&m_res);
+
+        trab->res = res;
+        listaResultados.push_back(trab);
+
+        printf("(%d)(DEPOIS GUARDA) ID = %d DTA = %d RES = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, *(int*)trab->res, listaResultados.size());
+
+        pthread_mutex_unlock(&m_res);
+        sem_post(&rocupada);
+        
+        sleep(1);
+
     }
 
     return NULL;
@@ -93,10 +85,16 @@ void *criaPv(void *dta)
 
 int start(int m)
 {
-    printf("-> START    THREAD: %d\n", (int *)pthread_self());
+    printf("(%d)(START)\n", pthread_self());
     int retorno = 0;
 
     nPvs = m;
+
+    sem_init(&tlivre, 0, nPvs);
+    sem_init(&tocupada, 0, 0);
+
+    sem_init(&rlivre, 0, nPvs);
+    sem_init(&rocupada, 0, 0);
 
     pvs = (pthread_t *)malloc(m * sizeof(pthread_t));
 
@@ -110,34 +108,39 @@ int start(int m)
 
 void finish()
 {
-    printf("-> FINISH    THREAD: %d\n", (int *)pthread_self());
-    fim = 1;
-    
-    for (int i = 0; i < nPvs; i++)
+    printf("(%d)(FINISH)\n", pthread_self());
+    fim = true;
+
+    for (int i = 0; i < nPvs; i++) 
         pthread_join(pvs[i], NULL);
+    
+    pthread_mutex_destroy(&m_trab);
+    pthread_mutex_destroy(&m_res);
 }
 
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
 {
-    printf("-> SPAWN    THREAD: %d\n", (int *)pthread_self());
+    printf("(%d)SPAWN\n", pthread_self());
     Trabalho *trab;
     trab = (Trabalho *)malloc(sizeof(Trabalho));
     if (trab == NULL) return 0;
 
+    sem_wait(&tlivre);
+    printf("(%d)(DENTRO SPAWN)\n", pthread_self());
     pthread_mutex_lock(&m_trab);
 
-    printf("-- DENTRO DE SPAWN    THREAD: %d\n", (int *)pthread_self());
     ids++;
     trab->tId = ids;
     trab->func = t;
     trab->dta = dta;
     listaTrabalhos.push_back(trab);
-    //printf("        ID = %d       DTA = %d      RES = %d    LIST = %d\n", trab->tId, *(int*)trab->res, *(int*)trab->dta, trab_size);
-    printf("        ID = %d       DTA = %d      LIST = %d\n", trab->tId, *(int*)trab->dta, listaTrabalhos.size());
-    if (!listaTrabalhos.empty()) pthread_cond_signal(&var_trab);
-    //if (listaTrabalhos.size() > 0) pthread_cond_broadcast(&var_trab);
+
+    printf("(%d)(DEPOIS SPAWN) ID = %d DTA = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, listaTrabalhos.size());
     
     pthread_mutex_unlock(&m_trab);
+    sem_post(&tocupada);
+
+    sleep(1);
 
     return ids;
 }
@@ -165,21 +168,23 @@ Trabalho* pegaTrabalhoPorId(int tId, list<Trabalho*> *lista) {
 
 int sync(int tId, void **res)
 {
-    printf("-> SYNC    THREAD: %d\n", (int *)pthread_self());
+    printf("(%d)(SYNC) ID = %d\n", pthread_self(), tId);
     Trabalho* trab;
 
+    sem_wait(&rocupada);
+    printf("(%d)(DENTRO SYNC) ID = %d\n", pthread_self(), tId);
     pthread_mutex_lock(&m_res);
-    while (listaResultados.empty()) pthread_cond_wait(&var_res, &m_res);
-
-    printf("-- DENTRO DE SYNC    THREAD: %d\n", (int *)pthread_self());
 
     while (trab == NULL)
         trab = pegaTrabalhoPorId(tId, &listaResultados);
 
     res = (void **)(trab->res);
-    printf("        ID = %d       DTA = %d      RES = %d    LIST = %d\n", trab->tId, *(int*)trab->res, *(int*)trab->dta, listaResultados.size());
+    printf("(%d)(DEPOIS SYNC) ID = %d DTA = %d RES = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->res, *(int*)trab->dta, listaResultados.size());
 
     pthread_mutex_unlock(&m_res);
+    sem_post(&rlivre);
+
+    sleep(1);
 
     return 1;
     /* // CASO 1

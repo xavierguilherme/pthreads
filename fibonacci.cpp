@@ -2,7 +2,6 @@
 #include <malloc.h>
 #include "minhaBiblioteca.h"
 
-
 void *fibo(void* dta){
     int *n = (int*) dta;
     printf("N = %d\n", *n);
@@ -23,7 +22,7 @@ void *fibo(void* dta){
         sync(t1, (void**) &r1);
         sync(t2, (void**) &r2);
 
-        printf("--------RETORNOS DE SYNC: %d %d", *r1, *r2);
+        printf("--------RETORNOS DE SYNC: %d %d\n", *r1, *r2);
 
         *r = *r1 + *r2;
         free(r1); free(r2);
