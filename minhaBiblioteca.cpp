@@ -25,7 +25,7 @@ pthread_mutex_t m_res = PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_t *pvs; // Processadores virtuais
 static bool fim = false;    //Variavel para indicar o fim do programa
-static int nPvs;       //Variavel que vai conter o numero m de processadores virtuais, para conseguir dar join neles na função finish
+int nPvs;       //Variavel que vai conter o numero m de processadores virtuais, para conseguir dar join neles na função finish
 static int ids = 0;    //Variavel para controlar os IDs dos trabalhos
 static int oct, ocr, livt, livr;
 
@@ -184,7 +184,7 @@ int sync(int tId, void **res)
     list <Trabalho*>::iterator it;
     bool found = false;
     int idx;
-
+    int aux,*aux2;
     while(!found) {
         idx = -1;
         for(it = listaResultados.begin(); it != listaResultados.end(); it++) {
@@ -193,7 +193,7 @@ int sync(int tId, void **res)
                 found = true;
                 break;
             }
-        }
+            }
     }
 
     sem_getvalue(&rocupada, &ocr);
@@ -210,9 +210,11 @@ int sync(int tId, void **res)
 
     it = listaResultados.begin();
     advance(it, idx);
-    res = (void **)((int*)(*it)->res);
-    listaResultados.erase(it);
-
+    aux = (*(int*)(*it)->res);
+    aux2 = &aux;
+    printf("%d aux", aux);
+    res = (void**)&aux2;
+    //listaResultados.erase(it);
     /* while (trab == NULL)
         trab = pegaTrabalhoPorId(tId, &listaResultados); */
 
@@ -221,9 +223,9 @@ int sync(int tId, void **res)
 
     sem_getvalue(&rocupada, &ocr);
     sem_getvalue(&rlivre, &livr);
-    printf("(%d)(DEPOIS SYNC) ID = %d RES = %d LIST = %d ROCUP = %d, RLIV = %d\n", pthread_self(), tId, *(int*)res, listaResultados.size(), ocr, livr);
+    printf("(%d)(DEPOIS SYNC) ID = %d RES = %d LIST = %d ROCUP = %d, RLIV = %d\n", pthread_self(), tId, aux, listaResultados.size(), ocr, livr);
     
     sleep(1);
 
-    return 1;
+    return aux;
 }
