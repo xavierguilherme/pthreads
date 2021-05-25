@@ -1,14 +1,14 @@
 #include <stdio.h>
+#include <pthread.h>
 #include <malloc.h>
 #include "minhaBiblioteca.h"
 
 void *fibo(void* dta){
     int *n = (int*) dta;
     printf("N = %d\n", *n);
-    int *n1, *n2, *r = (int *) malloc(sizeof(int)),
-            *r1, *r2, t1, t2;
+    int *n1, *n2, *r1, *r2, t1, t2;
+    int *r = (int *) malloc(sizeof(int));
     struct Atrib a1, a2;
-    
     if (*n <= 2) *r = 1;
     else{
         n1 = (int *) malloc(sizeof(int));
@@ -22,7 +22,7 @@ void *fibo(void* dta){
         sync(t1, (void**) &r1);
         sync(t2, (void**) &r2);
 
-        printf("--------RETORNOS DE SYNC: %d %d\n", *r1, *r2);
+        printf("--------RETORNOS DE SYNC: %d %d\n", r1, r2);
 
         *r = *r1 + *r2;
         free(r1); free(r2);

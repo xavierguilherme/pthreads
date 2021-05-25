@@ -27,6 +27,7 @@ static pthread_t *pvs; // Processadores virtuais
 static bool fim = false;    //Variavel para indicar o fim do programa
 static int nPvs;       //Variavel que vai conter o numero m de processadores virtuais, para conseguir dar join neles na função finish
 static int ids = 0;    //Variavel para controlar os IDs dos trabalhos
+static int oct, ocr, livt, livr;
 
 void *criaPv(void *dta)
 {
@@ -34,49 +35,56 @@ void *criaPv(void *dta)
     void *res;
     Trabalho *trab;
 
-    sleep(1);
+    sleep(3);
 
     while(!fim){
-
-        Trabalho *trab;
-
-        // PEGA O TRABALHO
-        printf("(%d)(PEGA)\n", pthread_self());
-
-        sem_wait(&tocupada);
-        printf("(%d)(DENTRO PEGA)\n", pthread_self());
-        pthread_mutex_lock(&m_trab);
-
-        trab = listaTrabalhos.front();
-        listaTrabalhos.pop_front();
-
-        printf("(%d)(DEPOIS PEGA) ID = %d DTA = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, listaTrabalhos.size());
         
-        pthread_mutex_unlock(&m_trab);
-        sem_post(&tlivre);
+        if (!listaTrabalhos.empty()) {
 
-        sleep(1);
+            Trabalho *trab;
 
-        // CHAMA A FUNÇÃO
-        printf("(%d)(FIBO) ", pthread_self());
-        res = trab->func(trab->dta);
+            // PEGA O TRABALHO
+            sem_getvalue(&tocupada, &oct);
+            sem_getvalue(&tlivre, &livt);
+            printf("\n(%d)(PEGA) TOCUP = %d, TLIV = %d\n", pthread_self(), oct, livt);
+            sem_wait(&tocupada);
+            sem_getvalue(&tocupada, &oct);
+            sem_getvalue(&tlivre, &livt);
+            printf("(%d)(DENTRO PEGA) TOCUP = %d, TLIV = %d\n", pthread_self(), oct, livt);
+            pthread_mutex_lock(&m_trab);
+            trab = listaTrabalhos.front();
+            listaTrabalhos.pop_front();   
+            pthread_mutex_unlock(&m_trab);
+            sem_post(&tlivre);
+            sem_getvalue(&tocupada, &oct);
+            sem_getvalue(&tlivre, &livt);
+            printf("(%d)(DEPOIS PEGA) ID = %d DTA = %d LIST = %d TOCUP = %d, TLIV = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, listaTrabalhos.size(), oct, livt);
 
-        // GUARDA O RESULTADO
+            sleep(1);
 
-        printf("(%d)(GUARDA) ID: %d RES = %d\n", pthread_self(), trab->tId, *(int*)res);
-        sem_wait(&rlivre);
-        printf("(%d)(DENTRO GUARDA)\n", pthread_self());
-        pthread_mutex_lock(&m_res);
+            // CHAMA A FUNÇÃO
+            printf("\n(%d)(FIBO) ", pthread_self());
+            res = trab->func(trab->dta);
 
-        trab->res = res;
-        listaResultados.push_back(trab);
-
-        printf("(%d)(DEPOIS GUARDA) ID = %d DTA = %d RES = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, *(int*)trab->res, listaResultados.size());
-
-        pthread_mutex_unlock(&m_res);
-        sem_post(&rocupada);
-        
-        sleep(1);
+            // GUARDA O RESULTADO
+            sem_getvalue(&rocupada, &ocr);
+            sem_getvalue(&rlivre, &livr);
+            printf("\n(%d)(GUARDA) ID: %d RES = %d ROCUP = %d, RLIV = %d\n", pthread_self(), trab->tId, *(int*)res, ocr, livr);
+            sem_wait(&rlivre);
+            sem_getvalue(&rocupada, &ocr);
+            sem_getvalue(&rlivre, &livr);
+            printf("(%d)(DENTRO GUARDA) ROCUP = %d, RLIV = %d\n", pthread_self(), ocr, livr);
+            pthread_mutex_lock(&m_res);
+            trab->res = res;
+            listaResultados.push_back(trab);
+            pthread_mutex_unlock(&m_res);
+            sem_post(&rocupada);
+            sem_getvalue(&rocupada, &ocr);
+            sem_getvalue(&rlivre, &livr);
+            printf("(%d)(DEPOIS GUARDA) ID = %d DTA = %d RES = %d LIST = %d ROCUP = %d, RLIV = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, *(int*)trab->res, listaResultados.size(), ocr, livr);
+            
+            sleep(1);
+        }
 
     }
 
@@ -120,38 +128,44 @@ void finish()
 
 int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
 {
-    printf("(%d)SPAWN\n", pthread_self());
+    sem_getvalue(&tocupada, &oct);
+    sem_getvalue(&tlivre, &livt);
+    printf("\n(%d)SPAWN TOCUP = %d, TLIV = %d\n", pthread_self(), oct, livt);
     Trabalho *trab;
     trab = (Trabalho *)malloc(sizeof(Trabalho));
     if (trab == NULL) return 0;
 
+    
     sem_wait(&tlivre);
-    printf("(%d)(DENTRO SPAWN)\n", pthread_self());
+    sem_getvalue(&tocupada, &oct);
+    sem_getvalue(&tlivre, &livt);
+    printf("(%d)(DENTRO SPAWN) TOCUP = %d, TLIV = %d\n", pthread_self(), oct, livt);
     pthread_mutex_lock(&m_trab);
 
     ids++;
     trab->tId = ids;
     trab->func = t;
     trab->dta = dta;
-    listaTrabalhos.push_back(trab);
-
-    printf("(%d)(DEPOIS SPAWN) ID = %d DTA = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, listaTrabalhos.size());
+    listaTrabalhos.push_front(trab);
     
     pthread_mutex_unlock(&m_trab);
     sem_post(&tocupada);
+    sem_getvalue(&tocupada, &oct);
+    sem_getvalue(&tlivre, &livt);
+    printf("(%d)(DEPOIS SPAWN) ID = %d DTA = %d LIST = %d TOCUP = %d, TLIV = %d\n", pthread_self(), trab->tId, *(int*)trab->dta, listaTrabalhos.size(), oct, livt);
 
     sleep(1);
 
     return ids;
 }
 
-Trabalho* pegaTrabalhoPorId(int tId, list<Trabalho*> *lista) {
-    list <Trabalho*> :: iterator it;
+/* Trabalho* pegaTrabalhoPorId(int tId, list<Trabalho*> *lista) {
+    list <Trabalho*>::iterator it;
 
     Trabalho* trab;
 
     //for(it = lista->begin(); it != lista->end(); it++) {
-    for(it = listaResultados.begin(); it != listaResultados.end(); it++) {
+    for(it = listaResultados.begin(); it != listaResultados.end(); ++it) {
         // printf("ID -> %d    TRABALHO -> %d\n", (*it)->tId, *(int*)((*it)->dta));
         if ((*it)->tId == tId) {
             trab = *it;
@@ -163,53 +177,53 @@ Trabalho* pegaTrabalhoPorId(int tId, list<Trabalho*> *lista) {
     }
     
     return trab;
-}
-
+} */
 
 int sync(int tId, void **res)
 {
-    printf("(%d)(SYNC) ID = %d\n", pthread_self(), tId);
-    Trabalho* trab;
+    list <Trabalho*>::iterator it;
+    bool found = false;
+    int idx;
+
+    while(!found) {
+        idx = -1;
+        for(it = listaResultados.begin(); it != listaResultados.end(); it++) {
+            idx++;
+            if ((*it)->tId == tId) {
+                found = true;
+                break;
+            }
+        }
+    }
+
+    sem_getvalue(&rocupada, &ocr);
+    sem_getvalue(&rlivre, &livr);
+    printf("\n(%d)(SYNC) ID = %d ROCUP = %d, RLIV = %d\n", pthread_self(), tId, ocr, livr);
 
     sem_wait(&rocupada);
-    printf("(%d)(DENTRO SYNC) ID = %d\n", pthread_self(), tId);
+
+    sem_getvalue(&rocupada, &ocr);
+    sem_getvalue(&rlivre, &livr);
+    printf("(%d)(DENTRO SYNC) ID = %d ROCUP = %d, RLIV = %d\n", pthread_self(), tId, ocr, livr);
+
     pthread_mutex_lock(&m_res);
 
-    while (trab == NULL)
-        trab = pegaTrabalhoPorId(tId, &listaResultados);
+    it = listaResultados.begin();
+    advance(it, idx);
+    res = (void **)((int*)(*it)->res);
+    listaResultados.erase(it);
 
-    res = (void **)(trab->res);
-    printf("(%d)(DEPOIS SYNC) ID = %d DTA = %d RES = %d LIST = %d\n", pthread_self(), trab->tId, *(int*)trab->res, *(int*)trab->dta, listaResultados.size());
+    /* while (trab == NULL)
+        trab = pegaTrabalhoPorId(tId, &listaResultados); */
 
     pthread_mutex_unlock(&m_res);
     sem_post(&rlivre);
 
+    sem_getvalue(&rocupada, &ocr);
+    sem_getvalue(&rlivre, &livr);
+    printf("(%d)(DEPOIS SYNC) ID = %d RES = %d LIST = %d ROCUP = %d, RLIV = %d\n", pthread_self(), tId, *(int*)res, listaResultados.size(), ocr, livr);
+    
     sleep(1);
 
     return 1;
-    /* // CASO 1
-    printf("LISTA TRABALHOS\n");
-    trab = pegaTrabalhoPorId(tId, listaTrabalhos);
-    if (trab == NULL) {
-        // CASO 2
-        printf("LISTA RESULTADOS\n");
-        trab = pegaTrabalhoPorId(tId, listaResultados);
-        if (trab == NULL) {
-            sleep(1);
-            // CASO 3
-            trab = pegaTrabalhoPorId(tId, listaResultados);
-            if (trab == NULL)
-                return 0;
-            else
-                res = (void **)(trab->res);
-
-        } else {
-            res = (void **)(trab->res);
-
-        }
-    } else {
-        res = (void **)(trab->func(trab->dta));
-
-    } */
-
 }
