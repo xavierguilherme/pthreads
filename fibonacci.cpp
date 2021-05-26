@@ -6,7 +6,6 @@
 void *fibo(void *dta)
 {
     int *n = (int *)dta;
-    printf("N = %d\n", *n);
     int *n1, *n2, *r1, *r2, t1, t2;
     int *r = (int *)malloc(sizeof(int));
     struct Atrib a1, a2;
@@ -26,11 +25,8 @@ void *fibo(void *dta)
         t2 = spawn(&a2, fibo, (void *)n2);
         r1 = (int *)malloc(sizeof(int));
         r2 = (int *)malloc(sizeof(int));
-        *r1 = sync(t1, (void **)&r1);
-        *r2 = sync(t2, (void **)&r2);
-
-        printf("--------RETORNOS DE SYNC: %d %d\n", *r1, *r2);
-
+        sync(t1, (void **)&r1);
+        sync(t2, (void **)&r2);
         *r = *r1 + *r2;
         free(r1);
         free(r2);
@@ -46,13 +42,13 @@ int main()
     struct Atrib a;
 
     r = (int *)malloc(sizeof(int));
-    start(5);
+    start(4);
 
-    n = 4;
+    n = 10;
     a.p = 0;
     a.c = n;
     tId = spawn(&a, fibo, &n);
-    *r = sync(tId, (void **)&r);
+    sync(tId, (void **)&r);
 
     finish();
 
