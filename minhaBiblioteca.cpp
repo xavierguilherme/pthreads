@@ -198,8 +198,8 @@ int sync(int tId, void **res)
                 break;
             }
         }
+        pthread_mutex_unlock(&m_res);
     }
-    pthread_mutex_unlock(&m_res);
 
     if (found)
         return 1;
