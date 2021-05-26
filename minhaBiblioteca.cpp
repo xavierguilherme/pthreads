@@ -103,7 +103,7 @@ da tarefa. A função retorna 0 (zero) em caso de falha na criação da tarefa o
 positivo maior que 0, considerado o identificador único da tarefa no programa. Caso NULL seja 
 passado como endereço para atrib, devem ser considerados os valores default para os atributos.
 */
-int spawn(struct Atrib *atrib, void *(*t)(void *), void *dta)
+int spawn(Atrib *atrib, void *(*t)(void *), void *dta)
 {
     Trabalho *trab;
     trab = (Trabalho *)malloc(sizeof(Trabalho));
