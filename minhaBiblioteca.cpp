@@ -2,7 +2,6 @@
 #include <unistd.h>
 #include <list>
 #include <malloc.h>
-#include <semaphore.h>
 #include <stdio.h>
 #include "minhaBiblioteca.h"
 
@@ -135,7 +134,6 @@ int sync(int tId, void **res)
     list<Trabalho *>::iterator it;
     Trabalho t;
     bool found = false;
-    int idx;
 
     /* 
     Caso UM: a tarefa está na lista de tarefas prontas. 
@@ -145,9 +143,7 @@ int sync(int tId, void **res)
     concluída na lista de tarefas finalizada
     */
     pthread_mutex_lock(&m_trab);
-    idx = -1;
     for (it = listaTrabalhos.begin(); it != listaTrabalhos.end(); it++) {
-        idx++;
         if ((*it)->tId == tId) {
             t = *(*it);
             listaTrabalhos.erase(it);
@@ -171,7 +167,7 @@ int sync(int tId, void **res)
     for (it = listaResultados.begin(); it != listaResultados.end(); it++) {
         if ((*it)->tId == tId) {
             *res = (void **)((*it)->res);
-            listaTrabalhos.erase(it);
+            listaResultados.erase(it);
             found = true;
             break;
         }
@@ -193,7 +189,7 @@ int sync(int tId, void **res)
         for (it = listaResultados.begin(); it != listaResultados.end(); it++) {
             if ((*it)->tId == tId) {
                 *res = (void **)((*it)->res);
-                listaTrabalhos.erase(it);
+                listaResultados.erase(it);
                 found = true;
                 break;
             }
